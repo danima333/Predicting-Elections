@@ -1,5 +1,5 @@
 
-election <- read.csv('cleanElectiond.csv', stringsAsFactors = F)
+election <- read.csv('cleanElections.csv', stringsAsFactors = F)
 
 eNames <- read.csv('Enames.csv')
 names(election)
@@ -23,15 +23,15 @@ sub16$DrugFR<- sub16[,"DrugFR"]/100
 sub16$unempR<- sub16[,"unempR"]/100
 
 ## DEALING WITH NAs
-  # Option 1: Remove NAs
-    # sub16 <- na.omit(sub16)
+# Option 1: Remove NAs
+# sub16 <- na.omit(sub16)
 
-  # Option 2: Impute NA values with mean
-    if (!'imputeR' %in% installed.packages()){
-      install.packages('imputeR')
-    }
-    library(imputeR)
-    sub16[sapply(sub16, is.numeric)] = guess(sub16[sapply(sub16, is.numeric)], type='mean')
+# Option 2: Impute NA values with mean
+if (!'imputeR' %in% installed.packages()){
+  install.packages('imputeR')
+}
+library(imputeR)
+sub16[sapply(sub16, is.numeric)] = guess(sub16[sapply(sub16, is.numeric)], type='mean')
 
 
 #2012 subset
@@ -53,15 +53,15 @@ sub12$DrugFR<- sub12[,"DrugFR"]/100
 sub12$unempR<- sub12[,"unempR"]/100
 
 ## DEALING WITH NAs
-  # Option 1: Remove NAs
-    # sub12 <- na.omit(sub12)
+# Option 1: Remove NAs
+# sub12 <- na.omit(sub12)
 
-  # Option 2: Impute NA values with mean
-    if (!'imputeR' %in% installed.packages()){
-    install.packages('imputeR')
-    }
-    library(imputeR)
-    sub12[sapply(sub12, is.numeric)] = guess(sub12[sapply(sub12, is.numeric)], type='mean')
+# Option 2: Impute NA values with mean
+if (!'imputeR' %in% installed.packages()){
+  install.packages('imputeR')
+}
+library(imputeR)
+sub12[sapply(sub12, is.numeric)] = guess(sub12[sapply(sub12, is.numeric)], type='mean')
 
 
 #Test/Validation with even RorD 
@@ -99,7 +99,7 @@ sub12$popDens <- sub12$pop/sub12$landArea
 sub16$popDens <- sub16$pop/sub16$landArea
 validation$popDens <- validation$pop/validation$landArea
 test$popDens <- test$pop/test$landArea
-  
+
 
 #normalize data
 sub12$popN <- scale(sub12$pop)
@@ -162,10 +162,10 @@ test$longitudeN <- scale(test$longitude)
 #install.packages('stats')
 library(stats)
 sub12sub <- subset(sub12,select = c(YdiscussOppose,Ydiscuss,	YCO2limits, YCO2limitsOppose,	YtrustclimsciSST,	YtrustclimsciSSTOppose,
-                                     Yregulate,	YregulateOppose,	YsupportRPS,	YsupportRPSOppose,	Yfundrenewables,	YfundrenewablesOppose, Yhappening,
-                                     YhappeningOppose,	Yhuman,	YhumanOppose,	Yconsensus,	YconsensusOppose,	Yworried,	YworriedOppose,	Ypersonal,
-                                     YpersonalOppose,	YharmUS,	YharmUSOppose,	Ydevharm,	YdevharmOppose,	Yfuturegen,	YfuturegenOppose,
-                                     Yharmplants,	YharmplantsOppose,	Ytiming,	YtimingOppose, RorD))
+                                    Yregulate,	YregulateOppose,	YsupportRPS,	YsupportRPSOppose,	Yfundrenewables,	YfundrenewablesOppose, Yhappening,
+                                    YhappeningOppose,	Yhuman,	YhumanOppose,	Yconsensus,	YconsensusOppose,	Yworried,	YworriedOppose,	Ypersonal,
+                                    YpersonalOppose,	YharmUS,	YharmUSOppose,	Ydevharm,	YdevharmOppose,	Yfuturegen,	YfuturegenOppose,
+                                    Yharmplants,	YharmplantsOppose,	Ytiming,	YtimingOppose, RorD))
 
 logsub <- log(sub12sub)
 logsub$RorD <- sub12sub$RorD
@@ -207,9 +207,9 @@ library(randomForest)
 set.seed(300)
 
 forest.vote = randomForest(RorD~   DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
-                              civLab + unempR + pctBlack + pctWhite + pctAsian  +
-                               pctHispanic
-                            ,data=sub12)
+                             civLab + unempR + pctBlack + pctWhite + pctAsian  +
+                             pctHispanic
+                           ,data=sub12)
 
 CUTOFF = .5
 pred.forest = as.integer(predict(forest.vote, prob = TRUE) > CUTOFF)
@@ -359,92 +359,264 @@ sum(sub16A$actualRepEVs)
 sum(sub16A$predictedDemEVs)
 sum(sub16A$predictedRepEVs)
 
+###############################################
+# Regression Models
 
-#regression
-
-#first:
+# Creating Binomial Variables Back:
 sub12$outcomebinomial <- NA
-for (i in 1:length(sub12)) {
-	if (sub12$outcome[i] == "Rep") {
-		sub12$outcomebinomial[i] <- 1
-	} else {
-		sub12$outcomebinomial[i] <- 0
-	}
+for (i in 1:length(sub12$outcome)) {
+  if (sub12$outcome[i] == "Rep") {
+    sub12$outcomebinomial[i] <- 1
+  } else {
+    sub12$outcomebinomial[i] <- 0
+  }
+}
+sub16$outcomebinomial <- NA
+for (i in 1:length(sub16$outcome)) {
+  if (sub16$outcome[i] == "Rep") {
+    sub16$outcomebinomial[i] <- 1
+  } else {
+    sub16$outcomebinomial[i] <- 0
+  }
 }
 
-logit.vote = glm(outcomebinomial~  pop + mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
-                             landArea + popDens + latitude + longitude 
-                             + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                             YharmUS, data=sub12, family=binomial)
+# Logistic regression (all variables not a good model):
+logit.vote = glm(outcomebinomial~latitude+longitude
+                 +mfgEmp+DrugFR+Obese+Pov+medInc+incomePercent+pop+intMig
+                 +domMig+netMig+civLab+unemp+college+pctBlack+pctAsian
+                 +pctHispanic+pctWhite+pctForeign+EmpTtl+WageMfg+WageTtl
+                 +popDens+landArea+Ydiscuss+YCO2limits+YtrustclimsciSST
+                 +Yregulate+YsupportRPS+Yfundrenewables+Yhappening+Yhuman
+                 +Yconsensus+Yworried+Ypersonal+YharmUS+Ydevharm+Yfuturegen
+                 +Yharmplants+Ytiming+year, data=sub12, family=binomial)
 summary(logit.vote)
-#second:
-logit.vote2 = glm(outcomebinomial~  mfgEmp + domMig + WageMfg + WageTtl + 
-                             landArea + popDens + longitude + Ydiscuss + YCO2limits + Yfundrenewables) 							+ Yhuman  + Yconsensus +	Yworried+	Ypersonal ,data=sub12t, family=binomial)
+
+#Building a better model by eliminating non-significant variables:
+#Predicting at 84%
+logit.vote2 = glm(outcomebinomial~latitude
+                  +DrugFR+incomePercent+pop
+                  +civLab+college+pctBlack
+                  +pctHispanic+pctWhite
+                  +landArea+Ydiscuss
+                  +YsupportRPS+Yfundrenewables+Yhuman
+                  +Yconsensus+Yworried+YharmUS+Yfuturegen
+                  +Ytiming, data=sub12, family=binomial)
 summary(logit.vote2)
 
 test$outcomebinomial <- NA
-for (i in 1:length(test)) {
-	if (test$outcome[i] == "Rep") {
-		test$outcomebinomial[i] <- 1
-	} else {
-		test$outcomebinomial[i] <- 0
-	}
+for (i in 1:length(test$outcome)) {
+  if (test$outcome[i] == "Rep") {
+    test$outcomebinomial[i] <- 1
+  } else {
+    test$outcomebinomial[i] <- 0
+  }
 }
+#Testing on test set 86.3%
 pred.logit2 <- predict(logit.vote2, newdata=test, type="response")
 fitted.results2 <- ifelse(pred.logit2 > 0.5, 1, 0)
 misClassError2 <- mean(fitted.results2 != test$outcomebinomial, na.rm=TRUE)
 print(paste('Accuracy',1-misClassError2))
+# Testing on sub16: Accuracy 86.44%
+pred.logit2 <- predict(logit.vote2, newdata=sub16, type="response")
+fitted.results2 <- ifelse(pred.logit2 > 0.5, 1, 0)
+misClassError2 <- mean(fitted.results2 != sub16$outcomebinomial, na.rm=TRUE)
+print(paste('Accuracy',1-misClassError2))
+
+#ROC Plot
+library(ROCR)
+p <- predict(logit.vote2, newdata=sub16, type="response")
+pr <- prediction(p, sub16$outcomebinomial)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+# AUC is best when closer to 1 than to 0.5
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+aucconfusionMatrix(fitted.results1, cutoff = 0.5)
+
+
 
 #Logistic Regression Model 3
 
 logit.vote3 = glm(outcomebinomial~  WageTtl + 
-                             popDens + longitude + YCO2limits + Yhuman  + Yconsensus +	Ypersonal ,data=sub12, family=binomial)
+                    popDens + longitude + YCO2limits + Yhuman  + Yconsensus +	Ypersonal ,data=sub12, family=binomial)
 summary(logit.vote3)
 pred.logit3 <- predict(logit.vote3, newdata=test, type="response")
 fitted.results3 <- ifelse(pred.logit3 > 0.5, 1, 0)
 misClassError3 <- mean(fitted.results3 != test$outcomebinomial, na.rm=TRUE)
 print(paste('Accuracy',1-misClassError3))
 
-#Logistic 4:
+#Logistic 4: Predicting with 89.77 accuracy
 
-logit.vote4 = glm(outcomebinomial~  DrugFR+Obese+Pov+medInc+incomePercent+pop+civLab+emp+unempR+
-			college+pctBlack+pctAsian+pctHispanic+pctWhite+pctForeign+WageMfg+popDens+landArea+
-			 + Ydiscuss + YCO2limits + Yfundrenewables + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                          YharmUS, data=sub12, family=binomial)
+logit.vote4 = glm(outcomebinomial~  landArea 
+                  + Yhuman 
+                  + Yconsensus +	Ypersonal
+                  , data=sub12, family=binomial)
 summary(logit.vote4)
+# Testing model on test set: accuracy 80.0%
 pred.logit4 <- predict(logit.vote4, newdata=test, type="response")
 fitted.results4 <- ifelse(pred.logit4 > 0.5, 1, 0)
 misClassError4 <- mean(fitted.results4 != test$outcomebinomial, na.rm=TRUE)
 print(paste('Accuracy',1-misClassError4))
 
-# temp forest:
+# Testing on sub16: Accuracy 87.49%
+pred.logit4 <- predict(logit.vote4, newdata=sub16, type="response")
+fitted.results4 <- ifelse(pred.logit4 > 0.5, 1, 0)
+misClassError4 <- mean(fitted.results4 != sub16$outcomebinomial, na.rm=TRUE)
+print(paste('Accuracy',1-misClassError4))
+
+# ROC plot
+#install.packages("ROCR")
+library(ROCR)
+p <- predict(logit.vote4, newdata=sub16, type="response")
+pr <- prediction(p, sub16$outcomebinomial)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+# AUC is best when closer to 1 than to 0.5
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+aucconfusionMatrix(fitted.results1, cutoff = 0.5)
+
+#Normalizing the data, scaling all numerical variables:
+sub12Numeric <- sapply(sub12, is.numeric)
+sub12N <- sub12[,sub12Numeric]
+sub12N <- as.data.frame(scale(sub12N[,1:83]))
+sub12N <- as.data.frame(cbind(sub12N,sub12$outcomebinomial))
+
+#Normalizing the data, scaling all numerical variables (sub12b)
+sub12Numericb <- sapply(sub12b, is.numeric)
+sub12Nb <- sub12[,sub12Numericb]
+sub12Nb <- as.data.frame(scale(sub12Nb[,1:83]))
+sub12Nb <- as.data.frame(cbind(sub12Nb,sub12b$outcomebinomial))
+
+# Simple tree plot:
+library(tree)
+
+tree.elec= tree(outcomebinomial~latitude+longitude
+                +mfgEmp+DrugFR+Obese+Pov+medInc+incomePercent+pop+intMig
+                +domMig+netMig+civLab+unemp+college+pctBlack+pctAsian
+                +pctHispanic+pctWhite+pctForeign+EmpTtl+WageMfg+WageTtl
+                +popDens+landArea+Ydiscuss+YCO2limits+YtrustclimsciSST
+                +Yregulate+YsupportRPS+Yfundrenewables+Yhappening+Yhuman
+                +Yconsensus+Yworried+Ypersonal+YharmUS+Ydevharm+Yfuturegen
+                +Yharmplants+Ytiming+year
+                ,data=sub12)
+
+summary(tree.elec)
+
+# Plot and label the tree
+plot(tree.elec)
+text(tree.elec,pretty=0)
+
+# Creating a Logistic regression with the variables from the tree:
+
+logit.vote5 = glm(outcomebinomial~ Ypersonal+WageMfg+YtrustclimsciSST+pop+intMig
+                  , data=sub12, family=binomial)
+summary(logit.vote5)
+# Testing on test set:
+pred.logit5 <- predict(logit.vote5, newdata=test, type="response")
+fitted.results5 <- ifelse(pred.logit5 > 0.5, 1, 0)
+misClassError5 <- mean(fitted.results5 != test$outcomebinomial, na.rm=TRUE)
+print(paste('Accuracy',1-misClassError5))
+# Only 90.76% accuracy
+
+# Testing on sub16: Accuracy 89.79%
+pred.logit5 <- predict(logit.vote5, newdata=sub16, type="response")
+fitted.results5 <- ifelse(pred.logit5 > 0.5, 1, 0)
+misClassError5 <- mean(fitted.results5 != sub16$outcomebinomial, na.rm=TRUE)
+print(paste('Accuracy',1-misClassError5))
+
+# ROC plot
+#install.packages("ROCR")
+library(ROCR)
+p <- predict(logit.vote5, newdata=sub16, type="response")
+pr <- prediction(p, sub16$outcomebinomial)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+############################################
+
+# Random Forest 1:
 set.seed(300)
-forest.vote4 = randomForest(outcome~  DrugFR+Obese+Pov+medInc+incomePercent+pop+civLab+emp+unempR+
-			college+pctBlack+pctAsian+pctHispanic+pctWhite+pctForeign+WageMfg+popDens+landArea+
-			 + Ydiscuss + YCO2limits + Yfundrenewables + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus + 
-			 Yworried + Ypersonal + YharmUS ,data=sub12)
+forest.vote4 = randomForest(outcome~DrugFR+Obese+Pov+medInc+incomePercent+pop+civLab+emp+unempR+
+                              college+pctBlack+pctAsian+pctHispanic+pctWhite+pctForeign+WageMfg+popDens+landArea+
+                              + Ydiscuss + YCO2limits + Yfundrenewables + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus + 
+                              Yworried + Ypersonal + YharmUS ,data=sub12)
 summary(forest.vote4)
 importance(forest.vote4)
 pred.forest4=predict(forest.vote4)
-table(sub12t$outcome, pred.forest4)
-#accuracy:
-(706+2137)/(706+2137+179+109)
-# Testing on the test set:
-test$pred.forest4 <- predict(forest.vote4, newdata=test, type="response")
-test$forestoutcome <- NA
-for (i in 1:length(test)) {
-	if (test$pred.forest4[i] == 'Rep') {
-		test$forestoutcome[i] <- 1
-	} else {
-		test$forestoutcome[i] <- 0
-	}
-}
+table(sub12$outcome, pred.forest4)
+# Accuracy:
+(713+2148)/(713+178+104+2148)
+
+# Testing on sub16:
+
+pred.forest2=predict(forest.vote4, newdata = sub16)
+table(sub16$outcome, pred.forest2)
+# Accuracy:
+(494+2260)/(494+2260+372+17)
+
+summary(forest.vote4)
+
+# Another random forest:
+plot(forest.elec)
+forest.elec= randomForest(outcome~latitude+longitude
+                          +mfgEmp+DrugFR+Obese+Pov+medInc+incomePercent+pop+intMig
+                          +domMig+netMig+civLab+unemp+college+pctBlack+pctAsian
+                          +pctHispanic+pctWhite+pctForeign+EmpTtl+WageMfg+WageTtl
+                          +popDens+landArea+Ydiscuss+YCO2limits+YtrustclimsciSST
+                          +Yregulate+YsupportRPS+Yfundrenewables+Yhappening+Yhuman
+                          +Yconsensus+Yworried+Ypersonal+YharmUS+Ydevharm+Yfuturegen
+                          +Yharmplants+Ytiming+year
+                          ,data=sub12)
+summary(forest.elec)
+importance(forest.elec)
+# Testing on sub12:
+pred.elec=predict(forest.elec)
+table(sub12$outcome, pred.elec)
+# Accuracy on sub12: 92.01%
+(727+2165)/(727+2165+87+164)
+# Testing on sub16:
+pred.elec16=predict(forest.elec, newdata = sub16)
+table(sub16$outcome, pred.elec16)
+# Accuracy on sub16: 87.52%
+(494+2257)/(494+2257+17+375)
+
+# Random Forest with variables from classification tree:
+forest.elec5 <- randomForest(outcome~ Ypersonal+WageMfg+YtrustclimsciSST+pop+intMig
+                             , data=sub12)
+# Testing on sub12:
+pred.elec5=predict(forest.elec5)
+table(sub12$outcome, pred.elec5)
+# Accuracy on sub12: 86.82%
+(639+2090)/(639+2090+252+162)
+# Testing on sub16:
+pred.elec165=predict(forest.elec5, newdata = sub16)
+table(sub16$outcome, pred.elec165)
+# Accuracy on sub16: 88.20%
+(486+2286)/(486+2286+346+25)
+
+#Random Forest with ROC plots:
+forest.elecROC= randomForest(outcome~latitude+longitude
+                             +mfgEmp+DrugFR+Obese+Pov+medInc+incomePercent+pop+intMig
+                             +domMig+netMig+civLab+unemp+college+pctBlack+pctAsian
+                             +pctHispanic+pctWhite+pctForeign+EmpTtl+WageMfg+WageTtl
+                             +popDens+landArea+Ydiscuss+YCO2limits+YtrustclimsciSST
+                             +Yregulate+YsupportRPS+Yfundrenewables+Yhappening+Yhuman
+                             +Yconsensus+Yworried+Ypersonal+YharmUS+Ydevharm+Yfuturegen
+                             +Yharmplants+Ytiming+year
+                             ,data=sub12, mtry=2, ntree=1000,
+                             keep.forest=TRUE, importance=TRUE,test=sub16)
+
+elect.pr = predict(forest.elecROC,type="prob",newdata=sub16)
+elect.pred <- prediction(elect.pr, sub16$outcome)
 
 
-fitted.results4f <- ifelse(test$forestoutcome > 0.5, 1, 0)
-misClassError4f <- mean(fitted.results4f != test$outcomebinomial, na.rm=TRUE)
-print(paste('Accuracy',1-misClassError4f))
 
+
+
+##################################################
 # NEURAL NET
 library(neuralnet)
 # train the neural network
@@ -457,90 +629,11 @@ plot(vote.net)
 vote.net 
 
 
-#first:
-sub12t$outcomebinomial <- NA
-for (i in 1:length(sub12t)) {
-	if (sub12t$outcome[i] == "Rep") {
-		sub12t$outcomebinomial[i] <- 1
-	} else {
-		sub12t$outcomebinomial[i] <- 0
-	}
-}
-
-logit.vote = glm(outcomebinomial~  pop + mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
-                             landArea + popDens + latitude + longitude 
-                             + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                          YharmUS,data=sub12t, family=binomial)
-summary(logit.vote)
-#second:
-logit.vote2 = glm(outcomebinomial~  mfgEmp + domMig + WageMfg + WageTtl + 
-                             landArea + popDens + longitude + Ydiscuss + YCO2limits + Yfundrenewables 							+ Yhuman  + Yconsensus +	Yworried+	Ypersonal ,data=sub12t, family=binomial)
-summary(logit.vote2)
-
-test$outcomebinomial <- NA
-for (i in 1:length(test)) {
-	if (test$outcome[i] == "Rep") {
-		test$outcomebinomial[i] <- 1
-	} else {
-		test$outcomebinomial[i] <- 0
-	}
-}
-pred.logit2 <- predict(logit.vote2, newdata=test, type="response")
-fitted.results2 <- ifelse(pred.logit2 > 0.5, 1, 0)
-misClassError2 <- mean(fitted.results2 != test$outcomebinomial, na.rm=TRUE)
-print(paste('Accuracy',1-misClassError2))
-
-#Logistic Regression Model 3
-
-logit.vote3 = glm(outcomebinomial~  WageTtl + 
-                             popDens + longitude + YCO2limits + Yhuman  + Yconsensus +	Ypersonal ,data=sub12t, family=binomial)
-summary(logit.vote3)
-pred.logit3 <- predict(logit.vote3, newdata=test, type="response")
-fitted.results3 <- ifelse(pred.logit3 > 0.5, 1, 0)
-misClassError3 <- mean(fitted.results3 != test$outcomebinomial, na.rm=TRUE)
-print(paste('Accuracy',1-misClassError3))
-
-#Logistic 4:
-
-logit.vote4 = glm(outcomebinomial~  DrugFR+Obese+Pov+medInc+incomePercent+pop+civLab+emp+unempR+
-			college+pctBlack+pctAsian+pctHispanic+pctWhite+pctForeign+WageMfg+popDens+landArea+
-			 + Ydiscuss + YCO2limits + Yfundrenewables + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                          YharmUS ,data=sub12t, family=binomial)
-summary(logit.vote4)
-pred.logit4 <- predict(logit.vote4, newdata=test, type="response")
-fitted.results4 <- ifelse(pred.logit4 > 0.5, 1, 0)
-misClassError4 <- mean(fitted.results4 != test$outcomebinomial, na.rm=TRUE)
-print(paste('Accuracy',1-misClassError4))
-
-# temp forest:
-set.seed(300)
-forest.vote4 = randomForest(outcome~  DrugFR+Obese+Pov+medInc+incomePercent+pop+civLab+emp+unempR+
-			college+pctBlack+pctAsian+pctHispanic+pctWhite+pctForeign+WageMfg+popDens+landArea+
-			 + Ydiscuss + YCO2limits + Yfundrenewables + Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                          YharmUS ,data=sub12t)
-summary(forest.vote4)
-importance(forest.vote4)
-pred.forest4=predict(forest.vote4)
-table(sub12t$outcome, pred.forest4)
-#accuracy:
-(706+2137)/(706+2137+179+109)
-# Testing on the test set:
-test$pred.forest4 <- predict(forest.vote4, newdata=test, type="response")
-test$forestoutcome <- NA
-for (i in 1:length(test)) {
-	if (test$pred.forest4[i] == 'Rep') {
-		test$forestoutcome[i] <- 1
-	} else {
-		test$forestoutcome[i] <- 0
-	}
-}
 
 
-fitted.results4f <- ifelse(test$forestoutcome > 0.5, 1, 0)
-misClassError4f <- mean(fitted.results4f != test$outcomebinomial, na.rm=TRUE)
-print(paste('Accuracy',1-misClassError4f))
 
 
+##################################################
 #ROC curve and AUC calcs 
 
 #install.packages('pROC')
@@ -618,7 +711,7 @@ rank_comparison_auc <- function(labels, scores, plot_image=TRUE, ...){
 }
 rank_comparison_auc(labels=as.logical(sub16$RorD), scores=pred.voteR) ## change these values for each model 
 
-
+###########################################################
 ##KNN
 # remove all the missing values
 sub12.omit=na.omit(sub12)
