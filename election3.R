@@ -205,21 +205,30 @@ names(PC)
 #random forest
 library(randomForest)
 set.seed(300)
-forest.vote = randomForest(outcome~  pop + mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
-                             landArea + popDens + latitude + longitude + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
-                           Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                          YharmUS,data=sub12)
 
-pred.forest = predict(forest.vote)
-table(sub12$outcome,pred.forest)
+forest.vote = randomForest(RorD~   DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
+                              civLab + unempR + pctBlack + pctWhite + pctAsian  +
+                               pctHispanic
+                            ,data=sub12)
 
+CUTOFF = .5
+pred.forest = as.integer(predict(forest.vote, prob = TRUE) > CUTOFF)
+table(sub12$RorD,pred.forest)
 
-#predict 2016 forest
-pred.forest16 <- predict(forest.vote,validation,type ='response')
-#2016 outcomes vs. predict
-table(validation$outcome,pred.forest16)
-forest16 <- table(validation$outcome,pred.forest16)
+importance2 <- importance(forest.vote)
+importance2 <- importance2[order(-importance2),]
 
+importance2
+
+#predict valdiation 2016 forest
+CUTOFF = .5
+pred.forest16 <- as.integer(predict(forest.vote,sub16) > CUTOFF)
+
+#2016 validation outcomes vs. predict
+table(sub16$RorD,pred.forest16)
+forest16 <- table(sub16$RorD,pred.forest16)
+
+pred.forest16 <- as.numeric(pred.forest16)
 #Accuracy
 (forest16[1] + forest16[4])/(forest16[1]+forest16[2]+forest16[3] + forest16[4])
 
@@ -280,11 +289,11 @@ conf.16 <- table(sub16$RorD, pred)
 (conf.16[1] + conf.16[4])/(conf.16[1]+conf.16[2]+conf.16[3]+conf.16[4])
 
 #for random forest..
-forest16prob <- predict(forest.vote,sub16,type ='prob')
-forest16prob2 <- as.vector(forest16prob[,1])
+forest16prob <- predict(forest.vote,sub16)
+sub16v <- cbind(sub16,forest16prob2)
 predForest <- round(forest16prob,0)
-preForestV <- as.vector(predForest[,1])
-conff.16 <- table(sub16$RorD, preForestV)
+#predForestV <- as.vector(predForest[,2])
+conff.16 <- table(sub16$RorD, predForest)
 (conff.16[1] + conff.16[4])/(conff.16[1]+conff.16[2]+conff.16[3]+conff.16[4])
 
 # we can't use total votes because technically we shouldnt' know total votes. determine % of pop voted in 2008, 2012..
@@ -296,7 +305,7 @@ election$vote2016 <- round(election$pop16 * election$avgVote,0)
 (election$Total16 - election$vote2016)/election$Total16
 
 sub16v <- merge(sub16v,election[,c('fips','vote2016')], by = c('fips'))
-head(sub16v)
+
 #votes per county
 
 #for boosted
@@ -304,7 +313,7 @@ sub16v$Dvote <- round(sub16v$vote2016*pred.vote16.2,0)
 sub16v$Rvote <- sub16v$vote2016 - sub16v$Dvote
 
 #for forest
-sub16v$Dvote <- round(sub16v$vote2016*forest16prob2,0)
+sub16v$Dvote <- round(sub16v$vote2016*forest16prob,0)
 sub16v$Rvote <- sub16v$vote2016- sub16v$Dvote
 #aggregate votes by state
 library("data.table")
