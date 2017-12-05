@@ -101,62 +101,6 @@ validation$popDens <- validation$pop/validation$landArea
 test$popDens <- test$pop/test$landArea
 
 
-#normalize data
-sub12$popN <- scale(sub12$pop)
-sub12$mfgEmpN <- scale(sub12$mfgEmp)
-sub12$medIncN <- scale(sub12$medInc)
-sub12$intMigN <- scale(sub12$intMig)
-sub12$domMigN <- scale(sub12$domMig)
-sub12$civLabN <- scale(sub12$civLab)
-sub12$EmpTtlN <- scale(sub12$EmpTtl)
-sub12$WageMfgN <- scale(sub12$WageMfg)
-sub12$WageTtlN <- scale(sub12$WageTtl)
-sub12$landAreaN <- scale(sub12$landArea)
-sub12$popDensN <- scale(sub12$popDens)
-sub12$latitudeN <- scale(sub12$latitude)
-sub12$longitudeN <- scale(sub12$longitude)
-
-sub16$popN <- scale(sub16$pop)
-sub16$mfgEmpN <- scale(sub16$mfgEmp)
-sub16$medIncN <- scale(sub16$medInc)
-sub16$intMigN <- scale(sub16$intMig)
-sub16$domMigN <- scale(sub16$domMig)
-sub16$civLabN <- scale(sub16$civLab)
-sub16$EmpTtlN <- scale(sub16$EmpTtl)
-sub16$WageMfgN <- scale(sub16$WageMfg)
-sub16$WageTtlN <- scale(sub16$WageTtl)
-sub16$landAreaN <- scale(sub16$landArea)
-sub16$popDensN <- scale(sub16$popDens)
-sub16$latitudeN <- scale(sub16$latitude)
-sub16$longitudeN <- scale(sub16$longitude)
-
-validation$popN <- scale(validation$pop)
-validation$mfgEmpN <- scale(validation$mfgEmp)
-validation$medIncN <- scale(validation$medInc)
-validation$intMigN <- scale(validation$intMig)
-validation$domMigN <- scale(validation$domMig)
-validation$civLabN <- scale(validation$civLab)
-validation$EmpTtlN <- scale(validation$EmpTtl)
-validation$WageMfgN <- scale(validation$WageMfg)
-validation$WageTtlN <- scale(validation$WageTtl)
-validation$landAreaN <- scale(validation$landArea)
-validation$popDensN <- scale(validation$popDens)
-validation$latitudeN <- scale(validation$latitude)
-validation$longitudeN <- scale(validation$longitude)
-
-test$popN <- scale(test$pop)
-test$mfgEmpN <- scale(test$mfgEmp)
-test$medIncN <- scale(test$medInc)
-test$intMigN <- scale(test$intMig)
-test$domMigN <- scale(test$domMig)
-test$civLabN <- scale(test$civLab)
-test$EmpTtlN <- scale(test$EmpTtl)
-test$WageMfgN <- scale(test$WageMfg)
-test$WageTtlN <- scale(test$WageTtl)
-test$landAreaN <- scale(test$landArea)
-test$popDensN <- scale(test$popDens)
-test$latitudeN <- scale(test$latitude)
-test$longitudeN <- scale(test$longitude)
 
 #PCA
 #install.packages('stats')
@@ -617,21 +561,122 @@ elect.pred <- prediction(elect.pr, sub16$outcome)
 
 
 ##################################################
-# NEURAL NET
+# NEURAL NETS (Models 1,5,6)
 library(neuralnet)
-# train the neural network
-set.seed(300)
-vote.net <- neuralnet(RorD~  popN + mfgEmpN + medIncN + intMigN + domMigN + civLabN + EmpTtlN + WageMfgN + WageTtlN + 
-                        landAreaN + popDensN + latitudeN + longitudeN + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
-                        Yhuman + YharmplantsOppose + Ytiming + Yconsensus + Yworried + Ypersonal +
-                        YharmUS, data=test, hidden=c(4,3,2))
-plot(vote.net)
-vote.net 
+
+##### NEURAL NET 1 ####
+  vote.net <- neuralnet(RorD~  popN + mfgEmpN + medIncN + intMigN + domMigN + civLabN + EmpTtlN + WageMfgN + WageTtlN + 
+                          landAreaN + popDensN + latitudeN + longitudeN + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
+                          Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried +	Ypersonal +
+                          YharmUS, data=sub12, hidden= 6)
+  plot(vote.net)
+
+  # EVALUATING predictions on VALIDATION
+    pred <- compute(vote.net,validation[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
+                                         "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
+                                         "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
+                                         "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
+                                         "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
+    pred = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred$net.result)
+    pred = pred[order(pred$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred$vote.nn = as.numeric(pred$vote.prob>0.6)
+    # confusion matrix of the prediction
+    votenn <- table(pred$RorD,pred$vote.nn)
+    accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
+    accuracynn 
+      # hidden = 6 --- Accuracy = .8716
+      # hidden = 5 --- Accuracy = .8672
+      # hidden = c(5,2) --- Accuracy = .8656 
+      # hidden = c(9,3) --- Accuracy = .8644
+      # hidden = c(3,2) --- Accuracy = .8592
+      # hidden = c(10,3) --- Accuracy = .8592
+      # hidden = 4 --- Accuracy = .8592
+      # hidden = c(16,10,6,4,3,2) --- Accuracy = .8437
+      # hidden = c(16,6,3,2) --- Accuracy = .8425
+
+  # EVALUATING predictions on SUB16 
+    pred <- compute(vote.net,sub16[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
+                                         "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
+                                         "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
+                                         "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
+                                         "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
+    pred = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred$net.result)
+    pred = pred[order(pred$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred$vote.nn = as.numeric(pred$vote.prob>0.6)
+    # confusion matrix of the prediction
+    votenn <- table(pred$RorD,pred$vote.nn)
+    accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
+    accuracynn #.8816
 
 
+#### NEURAL NET 5 ####
+  # train the neural network
+  vote.net5 <- neuralnet(RorD~ DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
+                           civLab + unempR + pctBlack + pctWhite + pctAsian  +
+                           pctHispanic, data=sub12, hidden=3)
+  plot(vote.net5)
+
+  # EVALUATING predictions on VALIDATION
+  pred5 <- compute(vote.net5,validation[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
+                                             "civLab", "unempR", "pctBlack", "pctWhite",  
+                                           "pctAsian", "pctHispanic")])
+    # evaluate predictions
+    pred5 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred5$net.result)
+    pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
+    # confusion matrix of the prediction
+    votenn5 <- table(pred5$RorD,pred5$vote.nn)
+    accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
+    accuracynn5 
+    # hidden = 3 --- Accuracy = .9125
+
+  # EVALUATING predictions on SUB16
+    pred5 <- compute(vote.net5,sub16[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
+                                           "civLab", "unempR", "pctBlack", "pctWhite",  
+                                           "pctAsian", "pctHispanic")])
+    pred5 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred5$net.result)
+    pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
+    # confusion matrix of the prediction
+    votenn5 <- table(pred5$RorD,pred5$vote.nn)
+    accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
+    accuracynn5 
+    # Accuracy = .9154
 
 
-
+#### NEURAL NET 6 #### 
+  # train the neural network
+  vote.net6 <- neuralnet(RorD~ Ypersonal+WageMfg+YtrustclimsciSST+pop+intMig, data=sub12, hidden=3)
+  # EVALUATING predictions on VALIDATION
+    pred6 <- compute(vote.net6,validation[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
+    # evaluate predictions
+    pred6 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred6$net.result)
+    pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
+    # confusion matrix of the prediction
+    votenn6 <- table(pred6$RorD,pred6$vote.nn)
+    accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
+    accuracynn6 
+    # hidden = 3 --- Accuracy = .9077
+    plot(vote.net6)
+ 
+  # EVALUATING predictions on SUB16
+    pred6 <- compute(vote.net6,sub16[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
+    pred6 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred6$net.result)
+    pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
+    # create another column in the data frame pred to store the predicted cancellation outcome
+    pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
+    # confusion matrix of the prediction
+    votenn6 <- table(pred6$RorD,pred6$vote.nn)
+    accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
+    accuracynn6 
+    # Accuracy = .9039
+  
 
 ##################################################
 #ROC curve and AUC calcs 
