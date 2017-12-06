@@ -1,10 +1,13 @@
-
+#Read in the data:
 election <- read.csv('cleanElections.csv', stringsAsFactors = F)
-
 eNames <- read.csv('Enames.csv')
 names(election)
-eNames
 
+#########################################
+##### DATA PREPARATION ##################
+#########################################
+
+#Clean the data
 #create 2016 subset for testing
 sub16 <- election[,!names(election) %in% c('mfgEmp12', 'DrugFR12','Obese12','Pov12',
                                            'medInc12','incomePercent12','pop12','intMig12','RorD08','mfgEmp12', 'DrugFR08','Obese08','Pov08',
@@ -99,209 +102,13 @@ sub12$popDens <- sub12$pop/sub12$landArea
 sub16$popDens <- sub16$pop/sub16$landArea
 validation$popDens <- validation$pop/validation$landArea
 test$popDens <- test$pop/test$landArea
-
-
-
-#PCA
-#install.packages('stats')
-library(stats)
-sub12sub <- subset(sub12,select = c(YdiscussOppose,Ydiscuss,	YCO2limits, YCO2limitsOppose,	YtrustclimsciSST,	YtrustclimsciSSTOppose,
-                                    Yregulate,	YregulateOppose,	YsupportRPS,	YsupportRPSOppose,	Yfundrenewables,	YfundrenewablesOppose, Yhappening,
-                                    YhappeningOppose,	Yhuman,	YhumanOppose,	Yconsensus,	YconsensusOppose,	Yworried,	YworriedOppose,	Ypersonal,
-                                    YpersonalOppose,	YharmUS,	YharmUSOppose,	Ydevharm,	YdevharmOppose,	Yfuturegen,	YfuturegenOppose,
-                                    Yharmplants,	YharmplantsOppose,	Ytiming,	YtimingOppose, RorD))
-
-logsub <- log(sub12sub)
-logsub$RorD <- sub12sub$RorD
-
-pc.RorD <- sub12sub[,'RorD']
-sub12.pca <- prcomp(sub12sub, center = TRUE, scale. = TRUE) 
-
-summary(sub12.pca)
-
-print(sub12.pca)
-
-plot(sub12.pca, type = 'l')
-trans$rotation
-# library(devtools)
-# install_github("ggbiplot", "vqv")
-# 
-# library(ggbiplot)
-# g <- ggbiplot(sub12.pca, obs.scale = 1, var.scale = 1, 
-#               groups = pc.RorD, ellipse = TRUE, 
-#               circle = TRUE)
-# g <- g + scale_color_discrete(name = '')
-# g <- g + theme(legend.direction = 'horizontal', 
-#                legend.position = 'top')
-# print(g)
-
-#install.packages('caret')
-#install.packages('e1071')
 require(caret)
 require(e1071)
-trans = preProcess(subset(logsub, select = -RorD), 
-                   method=c("BoxCox", "center", 
-                            "scale", "pca"))
-PC = predict(trans,subset(logsub, select = -RorD))
-summary(PC)
-names(PC)
-
-#random forest
-library(randomForest)
-set.seed(300)
-
-forest.vote = randomForest(RorD~   DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
-                             civLab + unempR + pctBlack + pctWhite + pctAsian  +
-                             pctHispanic
-                           ,data=sub12)
-
-CUTOFF = .5
-pred.forest = as.integer(predict(forest.vote, prob = TRUE) > CUTOFF)
-table(sub12$RorD,pred.forest)
-
-importance2 <- importance(forest.vote)
-importance2 <- importance2[order(-importance2),]
-
-importance2
-
-#predict valdiation 2016 forest
-CUTOFF = .5
-pred.forest16 <- as.integer(predict(forest.vote,sub16) > CUTOFF)
-
-#2016 validation outcomes vs. predict
-table(sub16$RorD,pred.forest16)
-forest16 <- table(sub16$RorD,pred.forest16)
-
-pred.forest16 <- as.numeric(pred.forest16)
-#Accuracy
-(forest16[1] + forest16[4])/(forest16[1]+forest16[2]+forest16[3] + forest16[4])
-
-#boosting
-library(gbm)
-set.seed(300)
-
-boost.vote <- gbm(RorD~  mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
-                    landArea + popDens + latitude + longitude + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
-                    Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                    YharmUS, data=sub12, distribution = "bernoulli", n.trees=1000)
-
-pred.vote <- predict(boost.vote,n.trees=1000,type="response")
-pred.vote <- round(pred.vote,0)
-table(sub12$RorD, pred.vote)
-summary(boost.vote)
-#predict 2016 boosting
-pred.vote16 <- predict(boost.vote,validation,n.trees=1000,type="response")
-pred.vote16 <- round(pred.vote16,0)
-vote16 <- table(validation$RorD,pred.vote16)
-
-#accuracy
-(vote16[1] + vote16[4]) / (vote16[1] + vote16[2] + vote16[3] + vote16[4])
-
-#majority class proportion 2016
-1- sum(validation$RorD)/nrow(validation)
-1- sum(sub12$RorD)/nrow(sub12)
-
-#boosting 2: probability (for votes by state) 
-library(gbm)
-set.seed(300)
 
 
-boost.vote2 <- gbm(RorD~ mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
-                     landArea + popDens + latitude + longitude + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
-                     Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
-                     YharmUS,data=sub12,distribution = "bernoulli",n.trees=1000)
-
-pred.vote2 <- predict(boost.vote2,n.trees=1000,type="response")
-table(sub12$RorD,pred.vote2)
-summary(boost.vote2)
-
-#sub16 for ROC
-CUTOFF <- .4
-pred.voteRR <- as.integer(predict(boost.vote2,sub16, n.trees=1000,type="response")>CUTOFF)
-
-table(sub16$RorD,pred.voteRR)
-vote16 <-  table(sub16$RorD,pred.voteRR)
-(vote16[1] + vote16[4]) / (vote16[1] + vote16[2] + vote16[3] + vote16[4])
-
-#predict 2016 boosting (for votes by state)
-pred.vote16.2 <- predict(boost.vote2,sub16,n.trees=1000,type="response")
-vote16.2 <- table(sub16$RorD,pred.vote16.2)
-sub16v <-cbind(sub16,pred.vote16.2)
-
-pred <- as.integer(pred.vote16.2 > .5)
-conf.16 <- table(sub16$RorD, pred)
-(conf.16[1] + conf.16[4])/(conf.16[1]+conf.16[2]+conf.16[3]+conf.16[4])
-
-#for random forest..
-forest16prob <- predict(forest.vote,sub16)
-sub16v <- cbind(sub16,forest16prob2)
-predForest <- round(forest16prob,0)
-#predForestV <- as.vector(predForest[,2])
-conff.16 <- table(sub16$RorD, predForest)
-(conff.16[1] + conff.16[4])/(conff.16[1]+conff.16[2]+conff.16[3]+conff.16[4])
-
-# we can't use total votes because technically we shouldnt' know total votes. determine % of pop voted in 2008, 2012..
-election[,8:116] <- sapply(election[8:116], as.numeric)
-election$pct2008 <- election$Total08/election$pop08
-election$pct2012 <- election$Total12/election$pop12
-election$avgVote <- rowMeans(subset(election, select = c(pct2008, pct2012)), na.rm = TRUE)
-election$vote2016 <- round(election$pop16 * election$avgVote,0)
-(election$Total16 - election$vote2016)/election$Total16
-
-sub16v <- merge(sub16v,election[,c('fips','vote2016')], by = c('fips'))
-
-#votes per county
-
-#for boosted
-sub16v$Dvote <- round(sub16v$vote2016*pred.vote16.2,0)
-sub16v$Rvote <- sub16v$vote2016 - sub16v$Dvote
-
-#for forest
-sub16v$Dvote <- round(sub16v$vote2016*forest16prob,0)
-sub16v$Rvote <- sub16v$vote2016- sub16v$Dvote
-#aggregate votes by state
-library("data.table")
-sub16v <- as.data.table(sub16v)
-setkey(sub16v,state)
-sub16A <- sub16v[,list(republicanP = sum(Rvote, na.rm = TRUE),republicanA = sum(rep, na.rm = TRUE),
-                       democratP = sum(Dvote, na.rm = TRUE), democratA = sum(dem, na.rm = TRUE), Obese = mean(Obese), DrugFR = mean(DrugFR), mfgEmp = mean(mfgEmp)
-                       ,Pov = mean(Pov), popDens = mean(popDens), intMig = mean(intMig), civLab = mean(civLab), Ydiscuss = mean(Ydiscuss), 
-                       YCO2limits = mean(YCO2limits), Yfundrenewables = mean(Yfundrenewables), Yhappening = mean(Yhappening), Yhuman = mean(Yhuman), 
-                       YharmplantsOppose = mean(YharmplantsOppose), Ytiming = mean(Ytiming), Yconsensus = mean(Yconsensus), Yworried = mean(Yworried)), by = 'state']
-
-#if rep votes > than dem votes, 0 else 1
-sub16A$RorDp <- ifelse(sub16A$republicanP > sub16A$democratP, 0 ,1)  
-sub16A$RorDa <- ifelse(sub16A$republicanA > sub16A$democratA, 0 ,1)  
-
-#predicted democratic states
-sum(sub16A$RorDp)
-#actual democratic states
-sum(sub16A$RorDa)
-#incorrect states
-error16 <- sub16A[sub16A$RorDa != sub16A$RorDp,]
-error16[,c('state','RorDp','RorDa')]
-tail(sub16A)
-
-
-electoralVotes <- read.csv('electoralVotes.csv')
-
-electoralVotes <- electoralVotes[order(electoralVotes$stateAb),]
-sub16A <- cbind(sub16A,electoralVotes$EV)
-
-#election2016 <- write.csv(sub16A, file = '2016election.csv')
-
-#actual vs. predicted electoral votes
-sub16A$actualDemEVs <- sub16A$RorDa*sub16A$V2
-sub16A$predictedDemEVs <- sub16A$RorDp*sub16A$V2
-sub16A$actualRepEVs <-  sub16A$V2 - sub16A$actualDemEVs
-sub16A$predictedRepEVs <- sub16A$V2 - sub16A$predictedDemEVs
-
-##these are off by about 20? 
-sum(sub16A$actualDemEVs)
-sum(sub16A$actualRepEVs)
-
-sum(sub16A$predictedDemEVs)
-sum(sub16A$predictedRepEVs)
+#########################################
+##### DATA MODELING #####################
+#########################################
 
 ###############################################
 # Regression Models
@@ -558,6 +365,163 @@ elect.pred <- prediction(elect.pr, sub16$outcome)
 
 
 
+# Random forest test
+library(randomForest)
+set.seed(300)
+
+forest.vote = randomForest(RorD~   DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
+                             civLab + unempR + pctBlack + pctWhite + pctAsian  +
+                             pctHispanic
+                           ,data=sub12)
+
+CUTOFF = .5
+pred.forest = as.integer(predict(forest.vote, prob = TRUE) > CUTOFF)
+table(sub12$RorD,pred.forest)
+
+importance2 <- importance(forest.vote)
+importance2 <- importance2[order(-importance2),]
+
+importance2
+
+#predict valdiation 2016 forest
+CUTOFF = .5
+pred.forest16 <- as.integer(predict(forest.vote,sub16) > CUTOFF)
+
+#2016 validation outcomes vs. predict
+table(sub16$RorD,pred.forest16)
+forest16 <- table(sub16$RorD,pred.forest16)
+
+pred.forest16 <- as.numeric(pred.forest16)
+#Accuracy
+(forest16[1] + forest16[4])/(forest16[1]+forest16[2]+forest16[3] + forest16[4])
+
+#boosting
+library(gbm)
+set.seed(300)
+
+boost.vote <- gbm(RorD~  mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
+                    landArea + popDens + latitude + longitude + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
+                    Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
+                    YharmUS, data=sub12, distribution = "bernoulli", n.trees=1000)
+
+pred.vote <- predict(boost.vote,n.trees=1000,type="response")
+pred.vote <- round(pred.vote,0)
+table(sub12$RorD, pred.vote)
+summary(boost.vote)
+#predict 2016 boosting
+pred.vote16 <- predict(boost.vote,validation,n.trees=1000,type="response")
+pred.vote16 <- round(pred.vote16,0)
+vote16 <- table(validation$RorD,pred.vote16)
+
+#accuracy
+(vote16[1] + vote16[4]) / (vote16[1] + vote16[2] + vote16[3] + vote16[4])
+
+#majority class proportion 2016
+1- sum(validation$RorD)/nrow(validation)
+1- sum(sub12$RorD)/nrow(sub12)
+
+#boosting 2: probability (for votes by state) 
+library(gbm)
+set.seed(300)
+
+
+boost.vote2 <- gbm(RorD~ mfgEmp + medInc + intMig + domMig + civLab + EmpTtl + WageMfg + WageTtl + 
+                     landArea + popDens + latitude + longitude + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
+                     Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried+	Ypersonal +
+                     YharmUS,data=sub12,distribution = "bernoulli",n.trees=1000)
+
+pred.vote2 <- predict(boost.vote2,n.trees=1000,type="response")
+table(sub12$RorD,pred.vote2)
+summary(boost.vote2)
+
+#sub16 for ROC
+CUTOFF <- .4
+pred.voteRR <- as.integer(predict(boost.vote2,sub16, n.trees=1000,type="response")>CUTOFF)
+
+table(sub16$RorD,pred.voteRR)
+vote16 <-  table(sub16$RorD,pred.voteRR)
+(vote16[1] + vote16[4]) / (vote16[1] + vote16[2] + vote16[3] + vote16[4])
+
+#predict 2016 boosting (for votes by state)
+pred.vote16.2 <- predict(boost.vote2,sub16,n.trees=1000,type="response")
+vote16.2 <- table(sub16$RorD,pred.vote16.2)
+sub16v <-cbind(sub16,pred.vote16.2)
+
+pred <- as.integer(pred.vote16.2 > .5)
+conf.16 <- table(sub16$RorD, pred)
+(conf.16[1] + conf.16[4])/(conf.16[1]+conf.16[2]+conf.16[3]+conf.16[4])
+
+#for random forest..
+forest16prob <- predict(forest.vote,sub16)
+sub16v <- cbind(sub16,forest16prob2)
+predForest <- round(forest16prob,0)
+#predForestV <- as.vector(predForest[,2])
+conff.16 <- table(sub16$RorD, predForest)
+(conff.16[1] + conff.16[4])/(conff.16[1]+conff.16[2]+conff.16[3]+conff.16[4])
+
+# we can't use total votes because technically we shouldnt' know total votes. determine % of pop voted in 2008, 2012..
+election[,8:116] <- sapply(election[8:116], as.numeric)
+election$pct2008 <- election$Total08/election$pop08
+election$pct2012 <- election$Total12/election$pop12
+election$avgVote <- rowMeans(subset(election, select = c(pct2008, pct2012)), na.rm = TRUE)
+election$vote2016 <- round(election$pop16 * election$avgVote,0)
+(election$Total16 - election$vote2016)/election$Total16
+
+sub16v <- merge(sub16v,election[,c('fips','vote2016')], by = c('fips'))
+
+#votes per county
+
+#for boosted
+sub16v$Dvote <- round(sub16v$vote2016*pred.vote16.2,0)
+sub16v$Rvote <- sub16v$vote2016 - sub16v$Dvote
+
+#for forest
+sub16v$Dvote <- round(sub16v$vote2016*forest16prob,0)
+sub16v$Rvote <- sub16v$vote2016- sub16v$Dvote
+#aggregate votes by state
+library("data.table")
+sub16v <- as.data.table(sub16v)
+setkey(sub16v,state)
+sub16A <- sub16v[,list(republicanP = sum(Rvote, na.rm = TRUE),republicanA = sum(rep, na.rm = TRUE),
+                       democratP = sum(Dvote, na.rm = TRUE), democratA = sum(dem, na.rm = TRUE), Obese = mean(Obese), DrugFR = mean(DrugFR), mfgEmp = mean(mfgEmp)
+                       ,Pov = mean(Pov), popDens = mean(popDens), intMig = mean(intMig), civLab = mean(civLab), Ydiscuss = mean(Ydiscuss), 
+                       YCO2limits = mean(YCO2limits), Yfundrenewables = mean(Yfundrenewables), Yhappening = mean(Yhappening), Yhuman = mean(Yhuman), 
+                       YharmplantsOppose = mean(YharmplantsOppose), Ytiming = mean(Ytiming), Yconsensus = mean(Yconsensus), Yworried = mean(Yworried)), by = 'state']
+
+#if rep votes > than dem votes, 0 else 1
+sub16A$RorDp <- ifelse(sub16A$republicanP > sub16A$democratP, 0 ,1)  
+sub16A$RorDa <- ifelse(sub16A$republicanA > sub16A$democratA, 0 ,1)  
+
+#predicted democratic states
+sum(sub16A$RorDp)
+#actual democratic states
+sum(sub16A$RorDa)
+#incorrect states
+error16 <- sub16A[sub16A$RorDa != sub16A$RorDp,]
+error16[,c('state','RorDp','RorDa')]
+tail(sub16A)
+
+
+electoralVotes <- read.csv('electoralVotes.csv')
+
+electoralVotes <- electoralVotes[order(electoralVotes$stateAb),]
+sub16A <- cbind(sub16A,electoralVotes$EV)
+
+#election2016 <- write.csv(sub16A, file = '2016election.csv')
+
+#actual vs. predicted electoral votes
+sub16A$actualDemEVs <- sub16A$RorDa*sub16A$V2
+sub16A$predictedDemEVs <- sub16A$RorDp*sub16A$V2
+sub16A$actualRepEVs <-  sub16A$V2 - sub16A$actualDemEVs
+sub16A$predictedRepEVs <- sub16A$V2 - sub16A$predictedDemEVs
+
+##these are off by about 20? 
+sum(sub16A$actualDemEVs)
+sum(sub16A$actualRepEVs)
+
+sum(sub16A$predictedDemEVs)
+sum(sub16A$predictedRepEVs)
+
 
 
 ##################################################
@@ -565,118 +529,118 @@ elect.pred <- prediction(elect.pr, sub16$outcome)
 library(neuralnet)
 
 ##### NEURAL NET 1 ####
-  vote.net <- neuralnet(RorD~  popN + mfgEmpN + medIncN + intMigN + domMigN + civLabN + EmpTtlN + WageMfgN + WageTtlN + 
-                          landAreaN + popDensN + latitudeN + longitudeN + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
-                          Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried +	Ypersonal +
-                          YharmUS, data=sub12, hidden= 6)
-  plot(vote.net)
+vote.net <- neuralnet(RorD~  popN + mfgEmpN + medIncN + intMigN + domMigN + civLabN + EmpTtlN + WageMfgN + WageTtlN + 
+                        landAreaN + popDensN + latitudeN + longitudeN + Ydiscuss + YCO2limits + Yfundrenewables +Yhappening +
+                        Yhuman +	YharmplantsOppose + Ytiming + Yconsensus +	Yworried +	Ypersonal +
+                        YharmUS, data=sub12, hidden= 6)
+plot(vote.net)
 
-  # EVALUATING predictions on VALIDATION
-    pred <- compute(vote.net,validation[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
-                                         "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
-                                         "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
-                                         "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
-                                         "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
-    pred = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred$net.result)
-    pred = pred[order(pred$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred$vote.nn = as.numeric(pred$vote.prob>0.6)
-    # confusion matrix of the prediction
-    votenn <- table(pred$RorD,pred$vote.nn)
-    accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
-    accuracynn 
-      # hidden = 6 --- Accuracy = .8716
-      # hidden = 5 --- Accuracy = .8672
-      # hidden = c(5,2) --- Accuracy = .8656 
-      # hidden = c(9,3) --- Accuracy = .8644
-      # hidden = c(3,2) --- Accuracy = .8592
-      # hidden = c(10,3) --- Accuracy = .8592
-      # hidden = 4 --- Accuracy = .8592
-      # hidden = c(16,10,6,4,3,2) --- Accuracy = .8437
-      # hidden = c(16,6,3,2) --- Accuracy = .8425
+# EVALUATING predictions on VALIDATION
+pred <- compute(vote.net,validation[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
+                                       "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
+                                       "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
+                                       "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
+                                       "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
+pred = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred$net.result)
+pred = pred[order(pred$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred$vote.nn = as.numeric(pred$vote.prob>0.6)
+# confusion matrix of the prediction
+votenn <- table(pred$RorD,pred$vote.nn)
+accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
+accuracynn 
+# hidden = 6 --- Accuracy = .8716
+# hidden = 5 --- Accuracy = .8672
+# hidden = c(5,2) --- Accuracy = .8656 
+# hidden = c(9,3) --- Accuracy = .8644
+# hidden = c(3,2) --- Accuracy = .8592
+# hidden = c(10,3) --- Accuracy = .8592
+# hidden = 4 --- Accuracy = .8592
+# hidden = c(16,10,6,4,3,2) --- Accuracy = .8437
+# hidden = c(16,6,3,2) --- Accuracy = .8425
 
-  # EVALUATING predictions on SUB16 
-    pred <- compute(vote.net,sub16[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
-                                         "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
-                                         "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
-                                         "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
-                                         "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
-    pred = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred$net.result)
-    pred = pred[order(pred$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred$vote.nn = as.numeric(pred$vote.prob>0.6)
-    # confusion matrix of the prediction
-    votenn <- table(pred$RorD,pred$vote.nn)
-    accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
-    accuracynn #.8816
+# EVALUATING predictions on SUB16 
+pred <- compute(vote.net,sub16[,c("popN", "mfgEmpN", "medIncN", "intMigN", "domMigN", "civLabN", "EmpTtlN",
+                                  "WageMfgN", "WageTtlN", "landAreaN", "popDensN", "latitudeN",
+                                  "longitudeN", "Ydiscuss", "YCO2limits", "Yfundrenewables",
+                                  "Yhappening", "Yhuman", "YharmplantsOppose", "Ytiming",
+                                  "Yconsensus",	"Yworried",	"Ypersonal", "YharmUS")])
+pred = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred$net.result)
+pred = pred[order(pred$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred$vote.nn = as.numeric(pred$vote.prob>0.6)
+# confusion matrix of the prediction
+votenn <- table(pred$RorD,pred$vote.nn)
+accuracynn <- (votenn[1] + votenn[4]) / (votenn[1] + votenn[2] + votenn[3] + votenn[4])
+accuracynn #.8816
 
 
 #### NEURAL NET 5 ####
-  # train the neural network
-  vote.net5 <- neuralnet(RorD~ DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
-                           civLab + unempR + pctBlack + pctWhite + pctAsian  +
-                           pctHispanic, data=sub12, hidden=3)
-  plot(vote.net5)
+# train the neural network
+vote.net5 <- neuralnet(RorD~ DrugFR  + Obese + medInc + popDens  +  Ydiscuss +
+                         civLab + unempR + pctBlack + pctWhite + pctAsian  +
+                         pctHispanic, data=sub12, hidden=3)
+plot(vote.net5)
 
-  # EVALUATING predictions on VALIDATION
-  pred5 <- compute(vote.net5,validation[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
-                                             "civLab", "unempR", "pctBlack", "pctWhite",  
-                                           "pctAsian", "pctHispanic")])
-    # evaluate predictions
-    pred5 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred5$net.result)
-    pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
-    # confusion matrix of the prediction
-    votenn5 <- table(pred5$RorD,pred5$vote.nn)
-    accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
-    accuracynn5 
-    # hidden = 3 --- Accuracy = .9125
+# EVALUATING predictions on VALIDATION
+pred5 <- compute(vote.net5,validation[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
+                                         "civLab", "unempR", "pctBlack", "pctWhite",  
+                                         "pctAsian", "pctHispanic")])
+# evaluate predictions
+pred5 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred5$net.result)
+pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
+# confusion matrix of the prediction
+votenn5 <- table(pred5$RorD,pred5$vote.nn)
+accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
+accuracynn5 
+# hidden = 3 --- Accuracy = .9125
 
-  # EVALUATING predictions on SUB16
-    pred5 <- compute(vote.net5,sub16[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
-                                           "civLab", "unempR", "pctBlack", "pctWhite",  
-                                           "pctAsian", "pctHispanic")])
-    pred5 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred5$net.result)
-    pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
-    # confusion matrix of the prediction
-    votenn5 <- table(pred5$RorD,pred5$vote.nn)
-    accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
-    accuracynn5 
-    # Accuracy = .9154
+# EVALUATING predictions on SUB16
+pred5 <- compute(vote.net5,sub16[,c("DrugFR", "Obese", "medInc", "popDens", "Ydiscuss",
+                                    "civLab", "unempR", "pctBlack", "pctWhite",  
+                                    "pctAsian", "pctHispanic")])
+pred5 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred5$net.result)
+pred5 = pred5[order(pred5$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred5$vote.nn = as.numeric(pred5$vote.prob>0.5)
+# confusion matrix of the prediction
+votenn5 <- table(pred5$RorD,pred5$vote.nn)
+accuracynn5 <- (votenn5[1] + votenn5[4]) / (votenn5[1] + votenn5[2] + votenn5[3] + votenn5[4])
+accuracynn5 
+# Accuracy = .9154
 
 
 #### NEURAL NET 6 #### 
-  # train the neural network
-  vote.net6 <- neuralnet(RorD~ Ypersonal+WageMfg+YtrustclimsciSST+pop+intMig, data=sub12, hidden=3)
-  # EVALUATING predictions on VALIDATION
-    pred6 <- compute(vote.net6,validation[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
-    # evaluate predictions
-    pred6 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred6$net.result)
-    pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
-    # confusion matrix of the prediction
-    votenn6 <- table(pred6$RorD,pred6$vote.nn)
-    accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
-    accuracynn6 
-    # hidden = 3 --- Accuracy = .9077
-    plot(vote.net6)
- 
-  # EVALUATING predictions on SUB16
-    pred6 <- compute(vote.net6,sub16[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
-    pred6 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred6$net.result)
-    pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
-    # create another column in the data frame pred to store the predicted cancellation outcome
-    pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
-    # confusion matrix of the prediction
-    votenn6 <- table(pred6$RorD,pred6$vote.nn)
-    accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
-    accuracynn6 
-    # Accuracy = .9039
-  
+# train the neural network
+vote.net6 <- neuralnet(RorD~ Ypersonal+WageMfg+YtrustclimsciSST+pop+intMig, data=sub12, hidden=3)
+# EVALUATING predictions on VALIDATION
+pred6 <- compute(vote.net6,validation[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
+# evaluate predictions
+pred6 = data.frame(fips=1:nrow(validation), RorDa=validation$RorD, vote.prob = pred6$net.result)
+pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
+# confusion matrix of the prediction
+votenn6 <- table(pred6$RorD,pred6$vote.nn)
+accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
+accuracynn6 
+# hidden = 3 --- Accuracy = .9077
+plot(vote.net6)
+
+# EVALUATING predictions on SUB16
+pred6 <- compute(vote.net6,sub16[,c("Ypersonal","WageMfg","YtrustclimsciSST","pop","intMig")])
+pred6 = data.frame(fips=1:nrow(sub16), RorDa=sub16$RorD, vote.prob = pred6$net.result)
+pred6 = pred6[order(pred6$vote.prob,decreasing=TRUE),]
+# create another column in the data frame pred to store the predicted cancellation outcome
+pred6$vote.nn = as.numeric(pred6$vote.prob>0.5)
+# confusion matrix of the prediction
+votenn6 <- table(pred6$RorD,pred6$vote.nn)
+accuracynn6 <- (votenn6[1] + votenn6[4]) / (votenn6[1] + votenn6[2] + votenn6[3] + votenn6[4])
+accuracynn6 
+# Accuracy = .9039
+
 
 ##################################################
 #ROC curve and AUC calcs 
@@ -802,3 +766,176 @@ table(elec.test$outcome,election.knn)
 ##accuracy
 (480+2426)/(480+9+201+2426)
 ##93.26%
+
+
+
+########################################
+# Visualizations
+
+boxplot(election$RorD08, election$Ypersonal)
+ggplot(data=election, aes(x=R, y=Ypersonal, color=)) +
+  geom_bar(position = )
+xlab("Box Size (x * y * z)")+
+  ylab("Price (in $)")+
+  scale_color_manual( name = "Cut",
+                      values=c("navy","gold3"))+
+  theme_bw()
+
+boxplot(election$Dem08, election$Ypersonal)
+ggplot(data=election, aes(x=Dem08, y=Ypersonal)) +
+  geom_point()+
+  geom_smooth(method="lm")+
+  xlab("dem")+
+  ylab("Ypersonal")
+theme_bw()
+
+ggplot(data=election, aes(x=Rep08, y=Ypersonal)) +
+  geom_point()+
+  geom_smooth(method="lm")+
+  xlab("rep")+
+  ylab("Ypersonal")
+theme_bw()  
+
+ggplot(data=election, aes(x=Total08, y=Ypersonal, color=outcome12)) +
+  geom_point()+
+  xlab("total")+
+  ylab("Ypersonal")
+theme_bw()  
+
+#same no outliers:
+# 2008:
+ggplot(data=subset(election,Total08 <1500000), aes(x=Total08, y=Ypersonal, color=outcome08)) +
+  geom_point()+
+  ggtitle("% in County Who Think Global Warming Will Harm Them Personally")+
+  xlab("Total County Population")+
+  ylab("Ypersonal")
+theme_bw()  
+# 2012:
+ggplot(data=subset(election,Total12 <1500000), aes(x=Total12, y=Ypersonal, color=outcome12)) +
+  geom_point()+
+  ggtitle("% in County Who Think Global Warming Will Harm Them Personally")+
+  xlab("Total County Population")+
+  ylab("Ypersonal")
+theme_bw()  
+# 2016:
+ggplot(data=subset(election,Total16 <1500000), aes(x=Total16, y=Ypersonal, color=outcome16)) +
+  geom_point()+
+  ggtitle("% in County Who Think Global Warming Will Harm Them Personally")+
+  xlab("Total County Population")+
+  ylab("Ypersonal")
+theme_bw() 
+
+# Wage mfg:
+#2008
+ggplot(data=subset(election,Total08 <1500000 & WageMfg2012 <4e+09), 
+       aes(x=Total08, y=WageMfg2012, color=outcome08)) +
+  geom_point()+
+  ggtitle("Total Wages from Manufacturing")+
+  xlab("Total County Population")+
+  ylab("WageMfg")
+theme_bw() 
+#2012
+ggplot(data=subset(election,Total12 <1500000 & WageMfg2012 <4e+09), 
+       aes(x=Total12, y=WageMfg2012, color=outcome12)) +
+  geom_point()+
+  ggtitle("Total Wages from Manufacturing")+
+  xlab("Total County Population")+
+  ylab("WageMfg")
+theme_bw()   
+#2016
+#2012
+ggplot(data=subset(election,Total16 <1500000 & WageMfg2016 <4e+09), 
+       aes(x=Total16, y=WageMfg2016, color=outcome16)) +
+  geom_point()+
+  ggtitle("Total Wages from Manufacturing")+
+  xlab("Total County Population")+
+  ylab("WageMfg")
+theme_bw()   
+
+# CO2 limits 
+#2008
+ggplot(data=subset(election,Total08 <1500000), 
+       aes(x=Total08, y=YCO2limits, color=outcome08)) +
+  geom_point()+
+  ggtitle("% Strongly Support Setting Strict Limits on Existing Coal-Fire Power Plants")+
+  xlab("Total County Population")+
+  ylab("CO2limits")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw()  
+#2012
+ggplot(data=subset(election,Total12 <1500000), 
+       aes(x=Total12, y=YCO2limits, color=outcome12)) +
+  geom_point()+
+  ggtitle("% Strongly Support Setting Strict Limits on Existing Coal-Fire Power Plants")+
+  xlab("Total County Population")+
+  ylab("CO2limits")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw()  
+#2016
+ggplot(data=subset(election,Total16 <1500000), 
+       aes(x=Total16, y=YCO2limits, color=outcome16)) +
+  geom_point()+
+  ggtitle("% Strongly Support Setting Strict Limits on Existing Coal-Fire Power Plants")+
+  xlab("Total County Population")+
+  ylab("CO2limits")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+
+#YsupportRPS
+#2008
+ggplot(data=subset(election,Total08 <1500000), 
+       aes(x=Total08, y=YsupportRPS, color=outcome08)) +
+  geom_point()+
+  ggtitle("Percentage Who Strongly Support Renewable Sources")+
+  xlab("Total County Population")+
+  ylab("YsupportRPS")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw()  
+#2012
+ggplot(data=subset(election,Total12 <1500000), 
+       aes(x=Total12, y=YsupportRPS, color=outcome12)) +
+  geom_point()+
+  ggtitle("Percentage Who Strongly Support Renewable Sources")+
+  xlab("Total County Population")+
+  ylab("YsupportRPS")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+#2016
+ggplot(data=subset(election,Total16 <1500000), 
+       aes(x=Total16, y=YsupportRPS, color=outcome16)) +
+  geom_point()+
+  ggtitle("Percentage Who Strongly Support Renewable Sources")+
+  xlab("Total County Population")+
+  ylab("YsupportRPS")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+
+#Yworried (Global Warming)
+#2008
+ggplot(data=subset(election,Total08 <1500000), 
+       aes(x=Total08, y=Yworried, color=outcome08)) +
+  geom_point()+
+  ggtitle("% Who Are Very Worried About Global Warming")+
+  xlab("Total County Population")+
+  ylab("Yworried")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+#2012
+ggplot(data=subset(election,Total12 <1500000), 
+       aes(x=Total12, y=Yworried, color=outcome12)) +
+  geom_point()+
+  ggtitle("% Who Are Very Worried About Global Warming")+
+  xlab("Total County Population")+
+  ylab("Yworried")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+#2016
+ggplot(data=subset(election,Total16 <1500000), 
+       aes(x=Total16, y=Yworried, color=outcome16)) +
+  geom_point()+
+  ggtitle("% Who Are Very Worried About Global Warming")+
+  xlab("Total County Population")+
+  ylab("Yworried")+
+  scale_color_manual(values=c("blue","red"))
+theme_bw() 
+
